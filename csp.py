@@ -29,6 +29,7 @@ class Domain:
     def size(self):
         return len(self.inDomain)
         
+# Contrainte définie par une liste de couples réalisables
 class Constraint:
     def __init__(self,x1,x2,possibleCouples):
         self.x1 = x1
@@ -68,6 +69,16 @@ class Constraint:
         
         return True
         
+# Contrainte définie par une fonction sur les variables et les valeurs
+class ComprehensiveConstraint:
+    def __init__(self,x1,x2,possibleCouplesFunc):
+        self.x1 = x1
+        self.x2 = x2
+        self.possibleCouples = possibleCouplesFunc
+                
+    def hasCouple(self,v1,v2):
+        return self.possibleCouples(self.x1,self.x2,v1,v2)
+
 class CSP:
     def __init__(self,size):
         self.size = size
@@ -85,6 +96,7 @@ class CSP:
     def domainSize(self,x):
         return self.domain[x].size()
     
+    # Ajoute une contrainte définie par une liste de couples réalisables
     def addConstraint(self,x,y,possibleCouples):
         c = Constraint(x,y,possibleCouples)
         self.constraints += [c]
@@ -98,13 +110,27 @@ class CSP:
         else:
             self.constraints2D[y] = [c]
 
+    # Ajoute une contrainte définie par une fonction sur les variables et les valeurs
+    def addComprehensiveConstraint(self,x,y,possibleCouplesFunc):
+        c = ComprehensiveConstraint(x,y,possibleCouplesFunc)
+        self.constraints += [c]
+        if x in self.constraints2D:
+            self.constraints2D[x] += [c]
+        else:
+            self.constraints2D[x] = [c]
+        
+        if y in self.constraints2D:
+            self.constraints2D[y] += [c]
+        else:
+            self.constraints2D[y] = [c]
+
+    # Teste une instanciation donnée et dit si elle est réalisable
     def test(self,I):
-        for c in csp.constraints:
+        for c in self.constraints:
             if (I[c.x1] == None or I[c.x2] == None):
                 continue
             
             if not c.hasCouple(I[c.x1],I[c.x2]):
-#                print("<" + str(c.x1) + "," + str(I[c.x1]) + "> ; " + "<" + str(c.x2) + "," + str(I[c.x2]) + ">")
                 return False
                 
         return True
