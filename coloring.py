@@ -13,54 +13,74 @@ from backtrack import *
 import io
 import time
 
-# Model definition
-def diff(x,y,a,b):
-    return a != b
-
-filename = "./instances/le450_5d.col"
-#filename = "./instances/queen9_9.col"
-
-t = time.clock()
-
-found = False
-N = 1
-Nmin = 1
-Nmax = -1
-while not found:
-    print("N : " + str(N))
-#    possibleCouples = []
-#    for i in range(N):
-#        for j in range(N):
-#            if i != j:
-#                possibleCouples += [(i,j)]
-    possibleCouples = diff    
-    
+# Model reading
+def readInstance(filename):
+    nbNodes = 0
+    edges = []
     with io.open(filename) as f:
         lines = f.readlines()
         for line in lines:
             L = line.split(" ")
             if L[0] == 'e':
-                
-                csp.addComprehensiveConstraint(int(L[1])-1,int(L[2])-1,possibleCouples)            
+                edges += [(int(L[1])-1,int(L[2])-1)]
                 
             elif L[0] == 'p':
-                n = int(L[2])
-                csp = CSP(n)
-                for k in range(n):
-                    csp.setDomain(k,range(N))
+                nbNodes = int(L[2])
+                
+    return nbNodes, edges
             
+
+# Model definition
+def diff(x,y,a,b):
+    return a != b
     
-    print("Model loading : " + str(time.clock()-t))
+class ColoringModel:
+    def __init__(self, nbNodes, edges, N = None):
+        self.nbNodes = nbNodes
+        self.edges = edges[:]
+        self.nbColors = N
+        
+        self.csp = CSP(self.nbNodes)        
+        
+        if self.nbColors != None:
+            for k in range(self.nbNodes):
+                self.csp.setDomain(k,range(self.nbColors))
+            
+        for u,v in self.edges:
+            self.csp.addComprehensiveConstraint(u,v,diff)
+            
+    def setNbColors(self, N):
+        self.nbColors = N
+        for k in range(self.nbNodes):
+            self.csp.setDomain(k,range(self.nbColors))
+
+
+
+# Optimization loop
+
+filename = "./instances/le450_5d.col"
+#filename = "./instances/queen9_9.col"
+
+nbNodes, edges = readInstance(filename)
+model = ColoringModel(nbNodes,edges)
+
+N = 1
+Nmin = 1
+Nmax = -1
+
+while True:
+    print("N : " + str(N))
+    model.setNbColors(N)
     
     t = time.clock()
     
-    ArcConsistency(csp)
+    ArcConsistency(model.csp)
     
     print("Arc consistency : " + str(time.clock()-t))
     
     t = time.clock()
     
-    backtrack = Backtrack(csp,timeLimit=10,processingMethod=ArcConsistencyMethod)
+    backtrack = Backtrack(model.csp,processingMethod=ForwardCheckingMethod)
     solution = backtrack.instanciation
     feasible = backtrack.feasible
     
@@ -83,3 +103,4 @@ while not found:
             if oldN == N:
                 break
     
+    print("")
