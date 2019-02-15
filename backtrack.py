@@ -9,48 +9,6 @@ import time
 import preprocessing
 import heuristics
 
-def forwardChecking(csp, x, I):
-    Q = {}
-    
-    if x in csp.constraints2D:
-        for c in csp.constraints2D[x]:
-            v1 = I[c.x1]
-            v2 = I[c.x2]
-            a = I[x]
-            
-            if (c.x1 == x and v2 == None):
-                y = c.x2
-                if not y in Q:
-                    Q[y] = []
-                for b in csp.getDomain(y):
-                    if not c.hasCouple(a,b):
-                        Q[y] += [b]
-                    
-            elif (c.x2 == x and v1 == None):
-                y = c.x1
-                if not y in Q:
-                    Q[y] = []
-                for b in csp.getDomain(y):
-                    if not c.hasCouple(b,a):
-                        Q[y] += [b]
-            
-            else:
-                continue
-            
-            for b in Q[y]:
-                if csp.domain[y].hasValue(b):
-                    csp.domain[y].removeValue(b)
-                    
-            if csp.domainSize(y) == 0:
-                return False, Q
-    
-    return True, Q
-            
-def cancelForwardChecking(csp, Q):
-    for var in Q.keys():
-        for val in Q[var]:
-            csp.domain[var].addValue(val)            
-                
 class Backtrack:
     # verbosity = 1 : affiche tout
     # verbosity = 0 : n'affiche rien
