@@ -16,10 +16,11 @@ class Backtrack:
         if verbosity > 1:
             print("Explored nodes : " + str(self.calls))
             print("Explored : " + str(self.explored))
-            print("Nodes open : " + str(self.nodes))
+            print("Nodes opened : " + str(self.nodes))
+            print("Current depth : " + str(self.currentDepth))
             print("Time spent in Forward Checking : " + str(self.timeForwardChecking))
             print("Time spent in cancelling Forward Checking : " + str(self.timeCancellingForwardChecking))
-            print("Time spent in variable branching selection : " + str(self.timeOrder))
+            print("Time spent in variable branching selection : " + str(self.timeVarSort))
             print("Time spent in constraint checking : " + str(self.timeConstraintChecking))
             print("Time spent overall : " + str(self.endTime-self.initTime))
             print("")
@@ -33,10 +34,12 @@ class Backtrack:
         # Gestion des stats
         self.endTime = time.clock()
         self.calls += 1
+        self.currentDepth = n
         if self.calls % self.displayFreq == 0:
             self.printStats(self.verbosity)
             
         if self.endTime-self.initTime > self.timeLimit:
+            self.unfinished = True
             return False
         
         t = time.clock()
@@ -90,6 +93,7 @@ class Backtrack:
                 P.cancel()
                 
                 self.timeCancellingForwardChecking += time.clock()-t
+                
                 self.explored += py
                 self.nodes -= 1
                 continue
@@ -98,10 +102,10 @@ class Backtrack:
             else:
                 
                 # Branchement dynamique sur les variables
-                if self.dynamicOrder != None:
+                if self.dynamicVarSort != None:
                     t = time.clock()
-                    self.variableOrder[n+1:] = self.dynamicOrder(self.csp,self.variableOrder[n+1:])
-                    self.timeOrder += time.clock()-t
+                    self.variableOrder[n+1:] = self.dynamicVarSort(self.csp,self.variableOrder[n+1:])
+                    self.timeVarSort += time.clock()-t
                 
                 # Exploration de la valeur de y
                 found = self.backtrack(n+1,y,py)
@@ -129,11 +133,14 @@ class Backtrack:
    
     def __init__(self, csp, **kwargs):
         self.csp = csp
+        self.feasible = False
+        self.unfinished = False
         
         # Paramètres du backtracking
-        self.init = None
-        self.initialOrder = None
-        self.dynamicOrder = heuristics.smallestDomain
+        self.initialization = None
+        self.initialOrder = range(csp.size)
+        self.initialVarSort = None
+        self.dynamicVarSort = heuristics.smallestDomain
         
         self.processingMethod = preprocessing.ForwardCheckingMethod
         
@@ -141,20 +148,21 @@ class Backtrack:
         self.displayFreq = 5000
         self.verbosity = 2
         
-        keywords = ["init","initialOrder","dynamicOrder","timeLimit","displayFreq","verbosity","processingMethod"]
+        keywords = ["initialization","initialOrder","initialVarSort","dynamicVarSort","timeLimit","displayFreq","verbosity","processingMethod"]
         for name in keywords:
             if name in kwargs:
                 setattr(self,name,kwargs[name])        
         
-        if self.initialOrder == None:
-            self.initialOrder = self.dynamicOrder
+        if self.initialVarSort == None:
+            self.initialVarSort = self.dynamicVarSort
         
         # Stats du backtracking (temps de calcul, noeuds ouverts, noeuds explorés, % de l'arbre exploré)
         self.nodes = 0
         self.calls = 0
         self.explored = 0
+        self.currentDepth = 0
         
-        self.timeOrder = 0
+        self.timeVarSort = 0
         self.timeForwardChecking = 0
         self.timeCancellingForwardChecking = 0
         self.timeConstraintChecking = 0
@@ -162,39 +170,40 @@ class Backtrack:
         self.endTime = time.clock()
         
         # Cas sans initialisation de l'instanciation
-        if self.init == None:
-            self.instanciation = [None for k in range(csp.size)]
+        if self.initialization == None:
+            self.instanciation = [None for k in self.initialOrder]
             
             # Branchement initial des variables
-            if self.initialOrder != None:
+            if self.initialVarSort != None:
                 t = time.clock()
-                self.variableOrder = self.initialOrder(csp,range(csp.size))
-                self.timeOrder += time.clock()-t
+                self.variableOrder = self.initialVarSort(csp,self.initialOrder)
+                self.timeVarSort += time.clock()-t
             else:
-                self.variableOrder = range(csp.size)
+                self.variableOrder = self.initialOrder
                 
             # Lancement de la récursion
             self.feasible = self.backtrack(0,None,1.)
             
         # Cas avec initialisation de l'instanciation
         else:
-            self.instanciation = self.init[:]
+            self.instanciation = self.initialization[:]
             if not csp.test(self.instanciation):
                 self.feasible = False
+                return
             
             initializedVars = []
             otherVars = []
-            for k in range(csp.size):
+            for k in self.initialOrder:
                 if self.instanciation[k] != None:
                     initializedVars += [k]
                 else:
                     otherVars += [k]
                     
             # Branchement initial des variables
-            if self.initialOrder != None:
+            if self.initialVarSort != None:
                 t = time.clock()
-                self.variableOrder = initializedVars + self.initialOrder(otherVars)
-                self.timeOrder += time.clock()-t
+                self.variableOrder = initializedVars + self.initialVarSort(csp,otherVars)
+                self.timeVarSort += time.clock()-t
             else:  
                 self.variableOrder = initializedVars + otherVars
             

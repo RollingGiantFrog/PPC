@@ -126,6 +126,10 @@ class CSP:
 
     # Teste une instanciation donnée et dit si elle est réalisable
     def test(self,I):
+        for x in range(self.size):
+            if I[x] != None and not self.domain[x].hasValue(I[x]):
+                return False
+        
         for c in self.constraints:
             if (I[c.x1] == None or I[c.x2] == None):
                 continue

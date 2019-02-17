@@ -55,14 +55,22 @@ class ColoringModel:
             self.csp.setDomain(k,range(self.nbColors))
 
 
-
 # Optimization loop
 
 filename = "./instances/le450_5d.col"
-#filename = "./instances/queen9_9.col"
+#filename = "./instances/latin_square_10.col"
 
 nbNodes, edges = readInstance(filename)
 model = ColoringModel(nbNodes,edges)
+
+deg = [0 for k in range(nbNodes)]
+for u,v in edges:
+    deg[u] += 1
+    deg[v] += 1
+nodes = [(deg[u],u) for u in range(nbNodes)]
+nodes.sort()
+initOrder = [u for d,u in nodes]
+init = [1] + [None for u in range(nbNodes-1)]
 
 N = 1
 Nmin = 1
@@ -74,13 +82,13 @@ while True:
     
     t = time.clock()
     
-    ArcConsistency(model.csp)
+#    ArcConsistency(model.csp)
     
     print("Arc consistency : " + str(time.clock()-t))
     
     t = time.clock()
     
-    backtrack = Backtrack(model.csp,processingMethod=ForwardCheckingMethod)
+    backtrack = Backtrack(model.csp,processingMethod=ForwardCheckingMethod)#,initialOrder=initOrder,initialVarSort=None,dynamicVarSort=None)
     solution = backtrack.instanciation
     feasible = backtrack.feasible
     
@@ -104,3 +112,6 @@ while True:
                 break
     
     print("")
+    
+print("Nmin = " + str(Nmin))
+print("Nmax = " + str(Nmax))

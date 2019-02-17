@@ -164,6 +164,10 @@ class ArcConsistencyMethod:
                         if total == 0:
                             csp.domain[y].removeValue(b)
                             self.prunedValues += [(y,b)]
+                            
+                            if csp.domainSize(y) == 0:
+                                self.infeasible = True
+                                return None, None
                                         
                         
                 elif (c.x2 == x and v1 == None):
@@ -200,11 +204,14 @@ class ArcConsistencyMethod:
                         if total == 0:
                             csp.domain[y].removeValue(b)
                             self.prunedValues += [(y,b)]
+                            
+                            if csp.domainSize(y) == 0:
+                                self.infeasible = True
+                                return None, None
                     
                 else:
                     continue
                 
-        
         return S, count    
     
     def __init__(self, csp, var, instanciation):
@@ -241,3 +248,97 @@ class NoProcessingMethod:
         
     def cancel(self):
         return
+        
+        
+class ArcConsistencyMethod3:
+    
+    def __init__(self, csp, var, I):
+        self.csp = csp
+        self.prunedValues = []
+        self.infeasible = False
+        
+        aTester = []
+        for c in csp.constraints2D[var]:
+            aTester += [c]
+            
+        while len(aTester) > 0:
+            c = aTester.pop()
+            tempPrunedValues = []            
+            
+            if I[c.x1] == None:
+                domain1 = csp.getDomain(c.x1)
+            else:
+                domain1 = [I[c.x1]]
+            
+            if I[c.x2] == None:
+                domain2 = csp.getDomain(c.x2)
+            else:
+                domain2 = [I[c.x2]]
+            
+            for a in domain1:
+                total = 0
+                for b in domain2:
+                    if c.hasCouple(a,b):
+                        total += 1
+                
+                if total == 0:
+                    self.prunedValues += [(c.x1,a)]
+                    tempPrunedValues += [a]
+            
+            for a in tempPrunedValues:
+                csp.domain[c.x1].removeValue(a)
+                
+            if I[c.x1] == None:
+                if csp.domainSize(c.x1) == 0:
+                    self.infeasible = True
+                    break
+            elif len(tempPrunedValues) > 0:
+                self.infeasible = True
+                break
+            
+            if len(tempPrunedValues) > 0:
+                for s in csp.constraints2D[c.x1]:
+                    if s.x1 != c.x2 and s.x2 != c.x2:
+                        aTester += [s]
+            
+            tempPrunedValues = []            
+            
+            if I[c.x1] == None:
+                domain1 = csp.getDomain(c.x1)
+            else:
+                domain1 = [I[c.x1]]
+            
+            if I[c.x2] == None:
+                domain2 = csp.getDomain(c.x2)
+            else:
+                domain2 = [I[c.x2]]
+            
+            for b in domain2:
+                total = 0
+                for a in domain1:
+                    if c.hasCouple(a,b):
+                        total += 1
+                
+                if total == 0:
+                    self.prunedValues += [(c.x2,b)]
+                    tempPrunedValues += [b]
+            
+            for b in tempPrunedValues:
+                csp.domain[c.x2].removeValue(b)
+                
+            if I[c.x2] == None:
+                if csp.domainSize(c.x2) == 0:
+                    self.infeasible = True
+                    break
+            elif len(tempPrunedValues) > 0:
+                self.infeasible = True
+                break
+            
+            if len(tempPrunedValues) > 0:
+                for s in csp.constraints2D[c.x2]:
+                    if s.x1 != c.x1 and s.x2 != c.x1:
+                        aTester += [s]
+            
+    def cancel(self):
+        for x,a in self.prunedValues:
+            self.csp.domain[x].addValue(a)
