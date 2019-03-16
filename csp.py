@@ -85,7 +85,9 @@ class CSP:
         self.domain = [Domain() for i in range(size)]
         self.constraints = []
         
-        self.constraints2D = {}
+        self.constraints2D = []
+        for i in range(self.size):
+            self.constraints2D += [[]]
         
     def setDomain(self,x,values):
         self.domain[x].setValues(values)
@@ -100,29 +102,17 @@ class CSP:
     def addConstraint(self,x,y,possibleCouples):
         c = Constraint(x,y,possibleCouples)
         self.constraints += [c]
-        if x in self.constraints2D:
-            self.constraints2D[x] += [c]
-        else:
-            self.constraints2D[x] = [c]
         
-        if y in self.constraints2D:
-            self.constraints2D[y] += [c]
-        else:
-            self.constraints2D[y] = [c]
+        self.constraints2D[x] += [c]
+        self.constraints2D[y] += [c]
 
     # Ajoute une contrainte définie par une fonction sur les variables et les valeurs
     def addComprehensiveConstraint(self,x,y,possibleCouplesFunc):
         c = ComprehensiveConstraint(x,y,possibleCouplesFunc)
         self.constraints += [c]
-        if x in self.constraints2D:
-            self.constraints2D[x] += [c]
-        else:
-            self.constraints2D[x] = [c]
         
-        if y in self.constraints2D:
-            self.constraints2D[y] += [c]
-        else:
-            self.constraints2D[y] = [c]
+        self.constraints2D[x] += [c]        
+        self.constraints2D[y] += [c]
 
     # Teste une instanciation donnée et dit si elle est réalisable
     def test(self,I):

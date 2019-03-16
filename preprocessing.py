@@ -79,12 +79,12 @@ def ArcConsistency(csp):
     return R
 
 class ForwardCheckingMethod:
-    def __init__(self, csp, x, I):
+    def __init__(self, csp, X, I):
         self.csp = csp
         self.prunedValues = []
         self.infeasible = False
         
-        if x in csp.constraints2D:
+        for x in X:
             for c in csp.constraints2D[x]:
                 v1 = I[c.x1]
                 v2 = I[c.x2]
@@ -118,133 +118,12 @@ class ForwardCheckingMethod:
     def cancel(self):
         for x,a in self.prunedValues:
             self.csp.domain[x].addValue(a)
-        
-class ArcConsistencyMethod:
-    
-    def initArcConsistency(self, csp, x, I):
-        S = {}
-        count = {}
-        
-        if x in csp.constraints2D:
-            for c in csp.constraints2D[x]:
-                v1 = I[c.x1]
-                v2 = I[c.x2]
-                a = I[x]
-                
-                if (c.x1 == x and v2 == None):
-                    y = c.x2
-                    total = 0
-                
-                    for b in csp.getDomain(y):
-                        if c.hasCouple(a,b):
-                            total += 1
-                            if not (y,b) in S:
-                                S[(y,b)] = [(x,a)]
-                            else:
-                                S[(y,b)] += [(x,a)]
-                                
-                    count[(x,y,a)] = total
-                    if total == 0:
-                        self.infeasible = True
-                        return None, None
-                        
-                    #
-    
-                    for b in csp.getDomain(y):
-                        total = 0
-                        
-                        if c.hasCouple(a,b):
-                            total += 1
-                            if not (x,a) in S:
-                                S[(x,a)] = [(y,b)]
-                            else:
-                                S[(x,a)] += [(y,b)]
-                                    
-                        count[(x,y,a)] = total
-                        if total == 0:
-                            csp.domain[y].removeValue(b)
-                            self.prunedValues += [(y,b)]
-                            
-                            if csp.domainSize(y) == 0:
-                                self.infeasible = True
-                                return None, None
-                                        
-                        
-                elif (c.x2 == x and v1 == None):
-                    y = c.x1
-                    
-                    total = 0
-                
-                    for b in csp.getDomain(y):
-                        if c.hasCouple(b,a):
-                            total += 1
-                            if not (y,b) in S:
-                                S[(y,b)] = [(x,a)]
-                            else:
-                                S[(y,b)] += [(x,a)]
-                                
-                    count[(x,y,a)] = total
-                    if total == 0:
-                        self.infeasible = True
-                        return None, None
-                
-                    #
-                
-                    for b in csp.getDomain(y):
-                        total = 0
-                        
-                        if c.hasCouple(b,a):
-                            total += 1
-                            if not (x,a) in S:
-                                S[(x,a)] = [(y,b)]
-                            else:
-                                S[(x,a)] += [(y,b)]
-                                    
-                        count[(x,y,a)] = total
-                        if total == 0:
-                            csp.domain[y].removeValue(b)
-                            self.prunedValues += [(y,b)]
-                            
-                            if csp.domainSize(y) == 0:
-                                self.infeasible = True
-                                return None, None
-                    
-                else:
-                    continue
-                
-        return S, count    
-    
-    def __init__(self, csp, var, instanciation):
-        self.csp = csp
-        self.prunedValues = []
-        self.infeasible = False
-        
-        S, count = self.initArcConsistency(csp,var,instanciation)
-    
-        if self.infeasible:
-            return
             
-        Q = self.prunedValues[:]
-        
-        while len(Q) > 0:
-            
-            y,b = Q.pop()
-            if (y,b) in S:
-                for x,a in S[(y,b)]:
-                    count[(x,y,a)] -= 1
-                    if count[(x,y,a)] == 0 and csp.domain[x].hasValue(a):
-                        csp.domain[x].removeValue(a)
-                        Q += [(x,a)]
-                        self.prunedValues += [(x,a)]
-        
-    
-    def cancel(self):
-        for x,a in self.prunedValues:
-            self.csp.domain[x].addValue(a)
 
 class NoProcessingMethod:
     def __init__(self, csp, x, I):
         self.infeasible = False
+        self.prunedValues = []
         
     def cancel(self):
         return
@@ -252,14 +131,15 @@ class NoProcessingMethod:
         
 class ArcConsistencyMethod3:
     
-    def __init__(self, csp, var, I):
+    def __init__(self, csp, variables, I):
         self.csp = csp
         self.prunedValues = []
         self.infeasible = False
         
-        aTester = []
-        for c in csp.constraints2D[var]:
-            aTester += [c]
+        for var in variables:        
+            aTester = []
+            for c in csp.constraints2D[var]:
+                aTester += [c]
             
         while len(aTester) > 0:
             c = aTester.pop()
@@ -291,10 +171,10 @@ class ArcConsistencyMethod3:
             if I[c.x1] == None:
                 if csp.domainSize(c.x1) == 0:
                     self.infeasible = True
-                    break
+                    return
             elif len(tempPrunedValues) > 0:
                 self.infeasible = True
-                break
+                return
             
             if len(tempPrunedValues) > 0:
                 for s in csp.constraints2D[c.x1]:
@@ -329,10 +209,10 @@ class ArcConsistencyMethod3:
             if I[c.x2] == None:
                 if csp.domainSize(c.x2) == 0:
                     self.infeasible = True
-                    break
+                    return
             elif len(tempPrunedValues) > 0:
                 self.infeasible = True
-                break
+                return
             
             if len(tempPrunedValues) > 0:
                 for s in csp.constraints2D[c.x2]:
@@ -342,3 +222,118 @@ class ArcConsistencyMethod3:
     def cancel(self):
         for x,a in self.prunedValues:
             self.csp.domain[x].addValue(a)
+            
+            
+class ArcConsistencyMethod:
+    def initArcConsistency(self):
+        S = {}
+        count = [[{} for i in range(self.csp.size)] for i in range(self.csp.size)]
+        
+        for c in self.csp.constraints:
+            x = c.x1
+            y = c.x2
+            
+            if self.I[x] == None:
+                domainX = self.csp.getDomain(x)
+            else:
+                domainX = [self.I[x]]
+            
+            if self.I[y] == None:
+                domainY = self.csp.getDomain(y)
+            else:
+                domainY = [self.I[y]]
+            
+            
+            for a in domainX:
+                total = 0
+                
+                for b in domainY:
+                    if c.hasCouple(a,b):
+                        total += 1
+                        if not (y,b) in S:
+                            S[(y,b)] = [(x,a)]
+                        else:
+                            S[(y,b)] += [(x,a)]
+                            
+                count[x][y][a] = total
+                if total == 0:
+                    self.csp.domain[x].removeValue(a)
+                    self.prunedValues += [(x,a)]
+                    
+                    if self.I[x] != None:
+                        self.infeasible = True
+                        return None, None
+                            
+                    elif self.csp.domainSize(x) == 0:
+                        self.infeasible = True
+                        return None, None
+        
+        for c in self.csp.constraints:
+            y = c.x1
+            x = c.x2
+            
+            if self.I[x] == None:
+                domainX = self.csp.getDomain(x)
+            else:
+                domainX = [self.I[x]]
+            
+            if self.I[y] == None:
+                domainY = self.csp.getDomain(y)
+            else:
+                domainY = [self.I[y]]
+            
+            
+            for a in domainX:
+                total = 0
+                
+                for b in domainY:
+                    if c.hasCouple(b,a):
+                        total += 1
+                        if not (y,b) in S:
+                            S[(y,b)] = [(x,a)]
+                        else:
+                            S[(y,b)] += [(x,a)]
+                            
+                count[x][y][a] = total
+                if total == 0:
+                    self.csp.domain[x].removeValue(a)
+                    self.prunedValues += [(x,a)]
+                    
+                    if self.I[x] != None:
+                        self.infeasible = True
+                        return None, None
+                            
+                    elif self.csp.domainSize(x) == 0:
+                        self.infeasible = True
+                        return None, None
+    
+        return S, count    
+    
+    
+    def __init__(self,csp,var,I):
+        self.csp = csp
+        self.prunedValues = []
+        self.infeasible = False
+        self.I = I
+        S, count = self.initArcConsistency()
+        R = self.prunedValues[:]
+        
+        if self.infeasible:
+            return
+            
+        while len(R) > 0:
+            
+            y,b = R.pop()
+            if (y,b) in S:
+                for x,a in S[(y,b)]:
+                    count[x][y][a] -= 1
+                    if count[x][y][a] == 0 and self.csp.domain[x].hasValue(a):
+                        self.csp.domain[x].removeValue(a)
+                        self.prunedValues += [(x,a)]
+                        R += [(x,a)]
+        
+    
+    def cancel(self):
+        for x,a in self.prunedValues:
+            self.csp.domain[x].addValue(a)
+            

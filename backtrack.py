@@ -8,6 +8,7 @@ Created on Thu Feb 14 17:09:34 2019
 import time
 import preprocessing
 import heuristics
+import random
 
 class Backtrack:
     # verbosity = 1 : affiche tout
@@ -45,7 +46,7 @@ class Backtrack:
         t = time.clock()
         
         # Vérification des contraintes
-        if x in self.csp.constraints2D:
+        if x != None:
             for c in self.csp.constraints2D[x]:
                 v1 = self.instanciation[c.x1]
                 v2 = self.instanciation[c.x2]
@@ -59,6 +60,7 @@ class Backtrack:
                     # Le couple de valeurs est admissible pour la contrainte c
                     if not c.hasCouple(v1,v2):
                         self.explored += p
+                        self.infeasibleVariables[x] += 1
                         return False
         
         self.timeConstraintChecking += time.clock()-t
@@ -72,26 +74,29 @@ class Backtrack:
         domainY = self.csp.getDomain(y)
         
         ny = len(domainY)
-        if ny > 0:
-            py = p/ny
+        py = p/self.initialDomainSizes[y]
+#        exp = self.explored
+        self.explored += py*(self.initialDomainSizes[y]-ny)
+#        print(self.explored-exp == 0)
+#        print(py*(self.initialDomainSizes[y]-ny))
         self.nodes += ny
         
         for v in domainY:
             self.instanciation[y] = v
             
             t = time.clock()
-            
             # Preprocessing avec la nouvelle instanciation
-            P = self.processingMethod(self.csp,y,self.instanciation)
-            
+#            if self.currentDepth <= 20 or self.currentDepth % 20 == 0:
+            P = self.processingMethod(self.csp,[y],self.instanciation)
+#            else:
+#                P = preprocessing.NoProcessingMethod(self.csp,[y],self.instanciation)
+            #P = self.processingMethod(self.csp,[y],self.instanciation)
             self.timeForwardChecking += time.clock()-t
             
             # Si preprocessing rend l'instanciation irréalisable, on annule et on ignore cette valeur de y
             if P.infeasible:
                 t = time.clock()
-                
                 P.cancel()
-                
                 self.timeCancellingForwardChecking += time.clock()-t
                 
                 self.explored += py
@@ -102,37 +107,40 @@ class Backtrack:
             else:
                 
                 # Branchement dynamique sur les variables
-                if self.dynamicVarSort != None:
+                if self.dynamicVarSort != None and P.prunedValues != []:
                     t = time.clock()
                     self.variableOrder[n+1:] = self.dynamicVarSort(self.csp,self.variableOrder[n+1:])
                     self.timeVarSort += time.clock()-t
                 
+                explored = self.explored
                 # Exploration de la valeur de y
                 found = self.backtrack(n+1,y,py)
                 
+                self.explored = explored + py
                 self.nodes -= 1            
                 
                 t = time.clock()
-                
                 P.cancel()
-                
                 self.timeCancellingForwardChecking += time.clock()-t
                 
                 # Si l'exploration a réussi, on propage la valeur "True"
                 if found:
                     return True
-        
+                    
         # Si l'exploration n'a jamais réussi, on désinstancie y
         self.instanciation[y] = None
         
         if ny == 0:
             self.explored += p
             
+        if x != None:
+            self.infeasibleVariables[x] += 1
         return False
    
    
     def __init__(self, csp, **kwargs):
         self.csp = csp
+        self.initialDomainSizes = [csp.domainSize(x) for x in range(self.csp.size)]
         self.feasible = False
         self.unfinished = False
         
@@ -143,6 +151,8 @@ class Backtrack:
         self.dynamicVarSort = heuristics.smallestDomain
         
         self.processingMethod = preprocessing.ForwardCheckingMethod
+        
+        self.infeasibleVariables = [0 for k in range(self.csp.size)]
         
         self.timeLimit = 100000000000
         self.displayFreq = 5000
