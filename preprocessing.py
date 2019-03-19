@@ -82,6 +82,7 @@ class ForwardCheckingMethod:
     def __init__(self, csp, X, I):
         self.csp = csp
         self.prunedValues = []
+        self.prunedVars = set()
         self.infeasible = False
         
         for x in X:
@@ -96,6 +97,7 @@ class ForwardCheckingMethod:
                         if not c.hasCouple(a,b):
                             self.prunedValues += [(y,b)]
                             
+                            self.prunedVars.add(y)
                             csp.domain[y].removeValue(b)
                             if csp.domainSize(y) == 0:
                                 self.infeasible = True
@@ -107,6 +109,7 @@ class ForwardCheckingMethod:
                         if not c.hasCouple(b,a):
                             self.prunedValues += [(y,b)]
                 
+                            self.prunedVars.add(y)
                             csp.domain[y].removeValue(b)
                             if csp.domainSize(y) == 0:
                                 self.infeasible = True
@@ -124,10 +127,10 @@ class NoProcessingMethod:
     def __init__(self, csp, x, I):
         self.infeasible = False
         self.prunedValues = []
+        self.prunedVars = set()
         
     def cancel(self):
         return
-        
         
 class ArcConsistencyMethod3:
     

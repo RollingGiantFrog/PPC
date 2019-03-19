@@ -84,6 +84,7 @@ class CSP:
         self.size = size
         self.domain = [Domain() for i in range(size)]
         self.constraints = []
+        self.neighbors = set()
         
         self.constraints2D = []
         for i in range(self.size):
@@ -105,6 +106,7 @@ class CSP:
         
         self.constraints2D[x] += [c]
         self.constraints2D[y] += [c]
+        self.neighbors.add((y,x))
 
     # Ajoute une contrainte définie par une fonction sur les variables et les valeurs
     def addComprehensiveConstraint(self,x,y,possibleCouplesFunc):
@@ -113,6 +115,8 @@ class CSP:
         
         self.constraints2D[x] += [c]        
         self.constraints2D[y] += [c]
+        self.neighbors.add((x,y))
+        self.neighbors.add((y,x))
 
     # Teste une instanciation donnée et dit si elle est réalisable
     def test(self,I):

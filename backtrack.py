@@ -8,24 +8,40 @@ Created on Thu Feb 14 17:09:34 2019
 import time
 import preprocessing
 import heuristics
+import brancher
 import random
 
 class Backtrack:
     # verbosity = 1 : affiche tout
     # verbosity = 0 : n'affiche rien
     def printStats(self,verbosity):
-        if verbosity > 1:
+        if verbosity >= 1:
+            print("*************** Globals stats ***************")
             print("Explored nodes : " + str(self.calls))
             print("Explored : " + str(self.explored))
             print("Nodes opened : " + str(self.nodes))
             print("Current depth : " + str(self.currentDepth))
+            print("Average depth : " + str(float(self.averageDepth)/self.calls))
+            print("Time spent overall : " + str(self.endTime-self.initTime))
+            
+            print("")
+            print("*************** Processing method  ***************")
+        if verbosity >= 2:
             print("Time spent in Forward Checking : " + str(self.timeForwardChecking))
             print("Time spent in cancelling Forward Checking : " + str(self.timeCancellingForwardChecking))
-            print("Time spent in variable branching selection : " + str(self.timeVarSort))
-            print("Time spent in constraint checking : " + str(self.timeConstraintChecking))
-            print("Time spent overall : " + str(self.endTime-self.initTime))
+            
             print("")
-    
+            print("*************** Branching method  ***************")
+            print("Time spent in variable branching selection : " + str(self.timeVarSort))
+            if verbosity >= 3:
+                self.brancher.printStats()
+                
+            print("")
+            print("*************** Constraint checking  ***************")
+            print("Time spent in constraint checking : " + str(self.timeConstraintChecking))
+            print("")
+        if verbosity > 0:
+            print("")
     
     # n est la taille de l'instanciation partielle
     # x est la dernière variable ajoutée
@@ -34,8 +50,11 @@ class Backtrack:
         
         # Gestion des stats
         self.endTime = time.clock()
+        if x != None:
+            self.instanciatedVariables[x] += 1
         self.calls += 1
         self.currentDepth = n
+        self.averageDepth += n
         if self.calls % self.displayFreq == 0:
             self.printStats(self.verbosity)
             
@@ -51,12 +70,7 @@ class Backtrack:
                 v1 = self.instanciation[c.x1]
                 v2 = self.instanciation[c.x2]
                 
-                # x est l'une des deux variables de la contrainte
-                # et les deux variables sont instanciées
-                if (c.x1 != x and c.x2 != x) or (v1 == None or v2 == None):
-                    continue
-                
-                else:
+                if v1 != None and v2 != None:
                     # Le couple de valeurs est admissible pour la contrainte c
                     if not c.hasCouple(v1,v2):
                         self.explored += p
@@ -70,7 +84,10 @@ class Backtrack:
             return True
             
         # Instanciation d'une nouvelle variable
-        y = self.variableOrder[n]
+        t = time.clock()
+        y = self.brancher.pop()
+        self.timeVarSort += time.clock()-t
+#        y = self.variableOrder[n]
         domainY = self.csp.getDomain(y)
         
         ny = len(domainY)
@@ -85,12 +102,19 @@ class Backtrack:
             self.instanciation[y] = v
             
             t = time.clock()
-            # Preprocessing avec la nouvelle instanciation
-#            if self.currentDepth <= 20 or self.currentDepth % 20 == 0:
+            
+#            d0 = 1.
+#            for var in self.variableOrder[n+1:]:
+#                d0 *= self.csp.domainSize(var)
+#                
             P = self.processingMethod(self.csp,[y],self.instanciation)
-#            else:
-#                P = preprocessing.NoProcessingMethod(self.csp,[y],self.instanciation)
-            #P = self.processingMethod(self.csp,[y],self.instanciation)
+            
+#            d = 1.
+#            for var in self.variableOrder[n+1:]:
+#                d *= self.csp.domainSize(var)
+#            if x != None:
+#                self.impactVariables[x] += 1-d/d0
+#                
             self.timeForwardChecking += time.clock()-t
             
             # Si preprocessing rend l'instanciation irréalisable, on annule et on ignore cette valeur de y
@@ -98,6 +122,10 @@ class Backtrack:
                 t = time.clock()
                 P.cancel()
                 self.timeCancellingForwardChecking += time.clock()-t
+                
+                t = time.clock()
+                self.brancher.update(P.prunedVars)
+                self.timeVarSort += time.clock()-t
                 
                 self.explored += py
                 self.nodes -= 1
@@ -109,7 +137,8 @@ class Backtrack:
                 # Branchement dynamique sur les variables
                 if self.dynamicVarSort != None and P.prunedValues != []:
                     t = time.clock()
-                    self.variableOrder[n+1:] = self.dynamicVarSort(self.csp,self.variableOrder[n+1:])
+                    self.brancher.update(P.prunedVars)
+#                    self.variableOrder[n+1:] = self.dynamicVarSort(self,self.csp,self.variableOrder[n+1:])
                     self.timeVarSort += time.clock()-t
                 
                 explored = self.explored
@@ -123,18 +152,26 @@ class Backtrack:
                 P.cancel()
                 self.timeCancellingForwardChecking += time.clock()-t
                 
+                t = time.clock()
+                self.brancher.update(P.prunedVars)
+                self.timeVarSort += time.clock()-t
+                
                 # Si l'exploration a réussi, on propage la valeur "True"
                 if found:
                     return True
                     
+        
         # Si l'exploration n'a jamais réussi, on désinstancie y
         self.instanciation[y] = None
+        
+        self.brancher.push(y)
         
         if ny == 0:
             self.explored += p
             
         if x != None:
             self.infeasibleVariables[x] += 1
+            
         return False
    
    
@@ -149,16 +186,20 @@ class Backtrack:
         self.initialOrder = range(csp.size)
         self.initialVarSort = None
         self.dynamicVarSort = heuristics.smallestDomain
+        self.rankFunc = heuristics.domainRank
+        self.brancherType = brancher.ArrayBrancher
         
         self.processingMethod = preprocessing.ForwardCheckingMethod
         
+        self.instanciatedVariables = [0 for k in range(self.csp.size)]
         self.infeasibleVariables = [0 for k in range(self.csp.size)]
+        self.impactVariables = [1. for k in range(self.csp.size)]
         
         self.timeLimit = 100000000000
         self.displayFreq = 5000
-        self.verbosity = 2
+        self.verbosity = 10
         
-        keywords = ["initialization","initialOrder","initialVarSort","dynamicVarSort","timeLimit","displayFreq","verbosity","processingMethod"]
+        keywords = ["initialization","initialOrder","initialVarSort","dynamicVarSort","rankFunc","brancherType","timeLimit","displayFreq","verbosity","processingMethod"]
         for name in keywords:
             if name in kwargs:
                 setattr(self,name,kwargs[name])        
@@ -171,6 +212,7 @@ class Backtrack:
         self.calls = 0
         self.explored = 0
         self.currentDepth = 0
+        self.averageDepth = 0
         
         self.timeVarSort = 0
         self.timeForwardChecking = 0
@@ -186,10 +228,12 @@ class Backtrack:
             # Branchement initial des variables
             if self.initialVarSort != None:
                 t = time.clock()
-                self.variableOrder = self.initialVarSort(csp,self.initialOrder)
+                self.variableOrder = self.initialVarSort(self,csp,self.initialOrder)
                 self.timeVarSort += time.clock()-t
             else:
                 self.variableOrder = self.initialOrder
+                
+            self.brancher = self.brancherType(self,self.rankFunc,[],self.initialOrder[:])                
                 
             # Lancement de la récursion
             self.feasible = self.backtrack(0,None,1.)
@@ -212,11 +256,16 @@ class Backtrack:
             # Branchement initial des variables
             if self.initialVarSort != None:
                 t = time.clock()
-                self.variableOrder = initializedVars + self.initialVarSort(csp,otherVars)
+                self.variableOrder = initializedVars + self.initialVarSort(self,csp,otherVars)
                 self.timeVarSort += time.clock()-t
             else:  
                 self.variableOrder = initializedVars + otherVars
             
+            for var in initializedVars:
+                self.instanciatedVariables[var] = 1
+            
+            self.brancher = self.brancherType(self,self.rankFunc,initializedVars,self.initialVarSort(self,csp,otherVars)[:])                
+                
             # Lancement de la récursion
             self.feasible = self.backtrack(len(initializedVars),None,1.)
 

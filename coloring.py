@@ -58,7 +58,7 @@ class ColoringModel:
 # Optimization loop
 
 filename = "./instances/le450_5d.col"
-filename = "./instances/myciel5.col"
+filename = "./instances/queen10_10.col"
 
 nbNodes, edges = readInstance(filename)
 model = ColoringModel(nbNodes,edges)
@@ -122,53 +122,53 @@ class CliqueFinder:
             self.clique = [self.nodes[i] for i in self.clique]
         
 
-#Kmin = 2
-#Kmax = -1
-#K = Kmin
-#while True:
-#    print("K : " + str(K))
-#    t = time.clock()
-#    
-#    cf = CliqueFinder(nbNodes,edge,K)
-#    solution = cf.clique
-#    feasible = cf.foundClique
-#    
-#    print("Clique : " + str(time.clock()-t))
-#    if feasible:
-#        print("Clique found.")
-#    else:
-#        print("Clique not found.")
-#    
-#    if feasible:
-#        Kmin = K
-#        if Kmax == -1:
-#            K = 2*K
-#        else:
-#            oldK = K
-#            K = (Kmax+Kmin+1)//2
-#            if oldK == K:
-#                break
-#        
-#    else:
-#        Kmax = K-1
-#        if Kmin == -1:
-#            K = K//2
-#        else:
-#            oldK = K
-#            K = (Kmax+Kmin+1)//2
-#            if oldK == K:
-#                break
-#    
-#    print("")
-#        
-#print("")
-#print("Kmin = " + str(Kmin))
-#print("Kmax = " + str(Kmax))
+Kmin = 2
+Kmax = -1
+K = Kmin
+while True:
+    print("K : " + str(K))
+    t = time.clock()
+    
+    cf = CliqueFinder(nbNodes,edge,K)
+    solution = cf.clique
+    feasible = cf.foundClique
+    
+    print("Clique : " + str(time.clock()-t))
+    if feasible:
+        print("Clique found.")
+    else:
+        print("Clique not found.")
+    
+    if feasible:
+        Kmin = K
+        if Kmax == -1:
+            K = 2*K
+        else:
+            oldK = K
+            K = (Kmax+Kmin+1)//2
+            if oldK == K:
+                break
+        
+    else:
+        Kmax = K-1
+        if Kmin == -1:
+            K = K//2
+        else:
+            oldK = K
+            K = (Kmax+Kmin+1)//2
+            if oldK == K:
+                break
+    
+    print("")
+        
+print("")
+print("Kmin = " + str(Kmin))
+print("Kmax = " + str(Kmax))
 
 
 init = [None for u in range(nbNodes)]
-#for k in range(len(cf.clique)):
-#    init[cf.clique[k]] = k
+for k in range(len(cf.clique)):
+    init[cf.clique[k]] = k
 
 
 N = 5
@@ -188,11 +188,10 @@ while True:
     
     t = time.clock()
     
-    backtrack = Backtrack(model.csp,displayFreq=5000,processingMethod=ForwardCheckingMethod,timeLimit=20)#,initialOrder=initOrder,initialVarSort=None,dynamicVarSort=None)
+    backtrack = Backtrack(model.csp,displayFreq=5000,rankFunc=infeasibilityRank,processingMethod=ForwardCheckingMethod,dynamicVarSort=largestInfeasible,initialization=init)#,initialOrder=initOrder,initialVarSort=None,dynamicVarSort=None)
     solution = backtrack.instanciation
     feasible = backtrack.feasible
     print(model.csp.test(solution))
-    print(backtrack.infeasibleVariables)
     
     print("Backtracking : " + str(time.clock()-t))
     
