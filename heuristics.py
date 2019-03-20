@@ -5,12 +5,30 @@ Created on Thu Feb 14 17:11:22 2019
 @author: Victor
 """
 
+import random as rd
+
+# Fonctions de rang
+
 def domainRank(backtrack,csp,x):
     return csp.domainSize(x)
     
 def infeasibilityRank(backtrack,csp,x):
-    return (csp.domainSize(x),-backtrack.infeasibleVariables[x])
-    
+    return -backtrack.infeasibleVariables[x]
+  
+def constraintRank(backtrack,csp,x):
+    return -len(csp.constraints2D[x])
+
+def impactRank(backtrack,csp,x):
+    if backtrack.instanciatedVariables[x] > 0:
+        return backtrack.impactVariables[x]/backtrack.instanciatedVariables[x]
+    else:
+        return 0
+        
+def randomRank(backtrack,csp,x):
+    return rd.random()
+
+
+# Algorithmes de tri par critères
 
 # Ordonne les variables X du csp par ordre croissant de taille de domaine
 def smallestDomain(backtrack,csp,X):

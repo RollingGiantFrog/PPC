@@ -12,6 +12,8 @@ from backtrack import *
 
 import time
 
+import matplotlib.pyplot as plt
+
 # Model definition
 def queenDiff(x,y,a,b):
     return a != b and abs(x-y) != abs(a-b)
@@ -26,11 +28,12 @@ def printSolution(sol):
                 s += "+ "
         print(s)
 
+tests = []
 solvingTime = []
 solutions = []
 feasibles = []
 
-for N in range(10,101):
+for N in range(10,400):
     print(N)
     
     t = time.clock()
@@ -54,13 +57,21 @@ for N in range(10,101):
     
     t = time.clock()
     
-    backtrack = Backtrack(csp,verbosity=3,displayFreq=10,processingMethod=ForwardCheckingMethod,dynamicVarSort=smallestDomain,rankFunc=infeasibilityRank)
-    solution = backtrack.instanciation
-    feasible = backtrack.feasible
+    feasible = False
+    i = 0
+    timeLimit = 1.1*(N/100.)*(N/100.)
+
+    while not feasible:
+        backtrack = Backtrack(csp,verbosity=0,displayFreq=10,processingMethod=ForwardCheckingMethod,useArcConsistency=False,rankFuncs=[domainRank,randomRank],timeLimit=timeLimit)
+        solution = backtrack.instanciation
+        feasible = backtrack.feasible
     
     print("Backtracking : " + str(time.clock()-t))
     
     solutions += [solution]
+    tests += [N]
     solvingTime += [time.clock()-t]
     feasibles += [feasible]
     
+plt.figure(1)
+plt.plot(tests,solvingTime,'r*')

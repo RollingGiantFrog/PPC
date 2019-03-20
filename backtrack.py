@@ -29,12 +29,16 @@ class Backtrack:
         if verbosity >= 2:
             print("Time spent in Forward Checking : " + str(self.timeForwardChecking))
             print("Time spent in cancelling Forward Checking : " + str(self.timeCancellingForwardChecking))
+            print("Time spent in Arc-Consistency : " + str(self.timeAC))
+            print("Time spent in cancelling Arc-Consistency : " + str(self.timeCancellingAC))
             
             print("")
             print("*************** Branching method  ***************")
-            print("Time spent in variable branching selection : " + str(self.timeVarSort))
+            print("Time spent in Variable Branching Selection : " + str(self.timeVarSort))
             if verbosity >= 3:
                 self.brancher.printStats()
+                
+            print("Time spent in Impact computation : " + str(self.timeImpact))
                 
             print("")
             print("*************** Constraint checking  ***************")
@@ -87,44 +91,60 @@ class Backtrack:
         t = time.clock()
         y = self.brancher.pop()
         self.timeVarSort += time.clock()-t
-#        y = self.variableOrder[n]
         domainY = self.csp.getDomain(y)
         
         ny = len(domainY)
         py = p/self.initialDomainSizes[y]
-#        exp = self.explored
         self.explored += py*(self.initialDomainSizes[y]-ny)
-#        print(self.explored-exp == 0)
-#        print(py*(self.initialDomainSizes[y]-ny))
         self.nodes += ny
         
         for v in domainY:
             self.instanciation[y] = v
             
+            # Application d'une méthode de preprocessing (forward-checking, AC)
             t = time.clock()
             
-#            d0 = 1.
-#            for var in self.variableOrder[n+1:]:
-#                d0 *= self.csp.domainSize(var)
-#                
             P = self.processingMethod(self.csp,[y],self.instanciation)
             
-#            d = 1.
-#            for var in self.variableOrder[n+1:]:
-#                d *= self.csp.domainSize(var)
-#            if x != None:
-#                self.impactVariables[x] += 1-d/d0
-#                
             self.timeForwardChecking += time.clock()-t
             
+            if self.useArcConsistency and self.endTime > self.lastCallAC + self.arcConsistencyWeight*self.durationAC:
+                self.lastCallAC = self.endTime
+                t = time.clock()
+                PAC = preprocessing.ArcConsistencyMethod(self.csp,[y],self.instanciation)
+                self.durationAC = time.clock()-t
+                self.timeAC += self.durationAC
+            else:
+                PAC = preprocessing.NoProcessingMethod(None,None,None)
+            
+            # Calcul de l'impact de x
+            t = time.clock()
+            
+            d = 1.
+            for var,vals in P.prunedValues.items():
+                size = self.csp.domainSize(var)
+                d *= size/(size + len(vals))
+            for var,vals in PAC.prunedValues.items():
+                size = self.csp.domainSize(var)
+                d *= size/(size + len(vals))
+                
+            if x != None:
+                self.impactVariables[x] += 1-d
+            
+            self.timeImpact += time.clock()-t
+            
             # Si preprocessing rend l'instanciation irréalisable, on annule et on ignore cette valeur de y
-            if P.infeasible:
+            if P.infeasible or PAC.infeasible:
+                t = time.clock()
+                PAC.cancel()
+                self.timeCancellingAC += time.clock()-t
+                
                 t = time.clock()
                 P.cancel()
                 self.timeCancellingForwardChecking += time.clock()-t
                 
                 t = time.clock()
-                self.brancher.update(P.prunedVars)
+#                self.brancher.update(P.prunedValues.keys())
                 self.timeVarSort += time.clock()-t
                 
                 self.explored += py
@@ -135,25 +155,31 @@ class Backtrack:
             else:
                 
                 # Branchement dynamique sur les variables
-                if self.dynamicVarSort != None and P.prunedValues != []:
-                    t = time.clock()
-                    self.brancher.update(P.prunedVars)
-#                    self.variableOrder[n+1:] = self.dynamicVarSort(self,self.csp,self.variableOrder[n+1:])
-                    self.timeVarSort += time.clock()-t
+                t = time.clock()
+#                self.brancher.update(P.prunedVars)
+                self.brancher.update(P.prunedValues.keys())
+                self.timeVarSort += time.clock()-t
                 
                 explored = self.explored
+                
                 # Exploration de la valeur de y
                 found = self.backtrack(n+1,y,py)
+#                if self.endTime-self.initTime > self.timeLimit:
+#                    return found
                 
                 self.explored = explored + py
                 self.nodes -= 1            
+                
+                t = time.clock()
+                PAC.cancel()
+                self.timeCancellingAC += time.clock()-t
                 
                 t = time.clock()
                 P.cancel()
                 self.timeCancellingForwardChecking += time.clock()-t
                 
                 t = time.clock()
-                self.brancher.update(P.prunedVars)
+                self.brancher.update(P.prunedValues.keys())
                 self.timeVarSort += time.clock()-t
                 
                 # Si l'exploration a réussi, on propage la valeur "True"
@@ -184,12 +210,14 @@ class Backtrack:
         # Paramètres du backtracking
         self.initialization = None
         self.initialOrder = range(csp.size)
-        self.initialVarSort = None
-        self.dynamicVarSort = heuristics.smallestDomain
-        self.rankFunc = heuristics.domainRank
+        self.rankFuncs = [heuristics.domainRank]
         self.brancherType = brancher.ArrayBrancher
         
         self.processingMethod = preprocessing.ForwardCheckingMethod
+        self.arcConsistencyWeight = 5
+        self.lastCallAC = 0
+        self.durationAC = 0
+        self.useArcConsistency = True
         
         self.instanciatedVariables = [0 for k in range(self.csp.size)]
         self.infeasibleVariables = [0 for k in range(self.csp.size)]
@@ -199,15 +227,12 @@ class Backtrack:
         self.displayFreq = 5000
         self.verbosity = 10
         
-        keywords = ["initialization","initialOrder","initialVarSort","dynamicVarSort","rankFunc","brancherType","timeLimit","displayFreq","verbosity","processingMethod"]
+        keywords = ["initialization","initialOrder","rankFuncs","brancherType","timeLimit","displayFreq","verbosity","processingMethod","arcConsistencyWeight","useArcConsistency"]
         for name in keywords:
             if name in kwargs:
                 setattr(self,name,kwargs[name])        
         
-        if self.initialVarSort == None:
-            self.initialVarSort = self.dynamicVarSort
-        
-        # Stats du backtracking (temps de calcul, noeuds ouverts, noeuds explorés, % de l'arbre exploré)
+        # Stats du backtracking (temps de calcul, noeuds ouverts, noeuds explorés, % de l'arbre exploré, profondeur)
         self.nodes = 0
         self.calls = 0
         self.explored = 0
@@ -217,7 +242,10 @@ class Backtrack:
         self.timeVarSort = 0
         self.timeForwardChecking = 0
         self.timeCancellingForwardChecking = 0
+        self.timeAC = 0
+        self.timeCancellingAC = 0
         self.timeConstraintChecking = 0
+        self.timeImpact = 0
         self.initTime = time.clock()
         self.endTime = time.clock()
         
@@ -226,14 +254,9 @@ class Backtrack:
             self.instanciation = [None for k in self.initialOrder]
             
             # Branchement initial des variables
-            if self.initialVarSort != None:
-                t = time.clock()
-                self.variableOrder = self.initialVarSort(self,csp,self.initialOrder)
-                self.timeVarSort += time.clock()-t
-            else:
-                self.variableOrder = self.initialOrder
-                
-            self.brancher = self.brancherType(self,self.rankFunc,[],self.initialOrder[:])                
+            t = time.clock()
+            self.brancher = self.brancherType(self,self.rankFuncs,[],self.initialOrder)   
+            self.timeVarSort += time.clock()-t             
                 
             # Lancement de la récursion
             self.feasible = self.backtrack(0,None,1.)
@@ -253,18 +276,13 @@ class Backtrack:
                 else:
                     otherVars += [k]
                     
-            # Branchement initial des variables
-            if self.initialVarSort != None:
-                t = time.clock()
-                self.variableOrder = initializedVars + self.initialVarSort(self,csp,otherVars)
-                self.timeVarSort += time.clock()-t
-            else:  
-                self.variableOrder = initializedVars + otherVars
-            
             for var in initializedVars:
                 self.instanciatedVariables[var] = 1
             
-            self.brancher = self.brancherType(self,self.rankFunc,initializedVars,self.initialVarSort(self,csp,otherVars)[:])                
+            # Branchement initial des variables
+            t = time.clock()
+            self.brancher = self.brancherType(self,self.rankFuncs,initializedVars,otherVars) 
+            self.timeVarSort += time.clock()-t               
                 
             # Lancement de la récursion
             self.feasible = self.backtrack(len(initializedVars),None,1.)

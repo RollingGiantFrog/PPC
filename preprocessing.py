@@ -5,6 +5,15 @@ Created on Thu Feb 14 17:15:45 2019
 @author: Victor
 """
 
+# Ce fichier contient :
+#   - l'arc-consistance
+#   - les méthodes de preprocessing pluggable dans la classe Backtrack :
+#       - pas de processing
+#       - forward-checking
+#       - arc-consistance (implémentation avec AC3 pour tenir compte de la variable instanciée
+#                          par le backtrack et faire moins de calculs)
+#       - arc-consistance (implémentation avec AC4 qui recalcule toute l'arc-consistance)
+
 def initArcConsistency(csp, instanciation = None):
     Q = []
     S = {}
@@ -78,11 +87,11 @@ def ArcConsistency(csp):
     
     return R
 
+
 class ForwardCheckingMethod:
     def __init__(self, csp, X, I):
         self.csp = csp
-        self.prunedValues = []
-        self.prunedVars = set()
+        self.prunedValues = {}
         self.infeasible = False
         
         for x in X:
@@ -95,9 +104,11 @@ class ForwardCheckingMethod:
                     y = c.x2
                     for b in csp.getDomain(y):
                         if not c.hasCouple(a,b):
-                            self.prunedValues += [(y,b)]
+                            if not y in self.prunedValues:
+                                self.prunedValues[y] = [b]
+                            else:
+                                self.prunedValues[y] += [b]
                             
-                            self.prunedVars.add(y)
                             csp.domain[y].removeValue(b)
                             if csp.domainSize(y) == 0:
                                 self.infeasible = True
@@ -107,9 +118,11 @@ class ForwardCheckingMethod:
                     y = c.x1
                     for b in csp.getDomain(y):
                         if not c.hasCouple(b,a):
-                            self.prunedValues += [(y,b)]
-                
-                            self.prunedVars.add(y)
+                            if not y in self.prunedValues:
+                                self.prunedValues[y] = [b]
+                            else:
+                                self.prunedValues[y] += [b]
+                            
                             csp.domain[y].removeValue(b)
                             if csp.domainSize(y) == 0:
                                 self.infeasible = True
@@ -119,15 +132,15 @@ class ForwardCheckingMethod:
         
                 
     def cancel(self):
-        for x,a in self.prunedValues:
-            self.csp.domain[x].addValue(a)
+        for x,vals in self.prunedValues.items():
+            for val in vals:
+                self.csp.domain[x].addValue(val)
             
 
 class NoProcessingMethod:
     def __init__(self, csp, x, I):
         self.infeasible = False
-        self.prunedValues = []
-        self.prunedVars = set()
+        self.prunedValues = {}
         
     def cancel(self):
         return
@@ -136,7 +149,7 @@ class ArcConsistencyMethod3:
     
     def __init__(self, csp, variables, I):
         self.csp = csp
-        self.prunedValues = []
+        self.prunedValues = {}
         self.infeasible = False
         
         for var in variables:        
@@ -165,7 +178,11 @@ class ArcConsistencyMethod3:
                         total += 1
                 
                 if total == 0:
-                    self.prunedValues += [(c.x1,a)]
+                    if not c.x1 in self.prunedValues:
+                        self.prunedValues[c.x1] = [a]
+                    else:
+                        self.prunedValues[c.x1] += [a]
+                        
                     tempPrunedValues += [a]
             
             for a in tempPrunedValues:
@@ -175,6 +192,7 @@ class ArcConsistencyMethod3:
                 if csp.domainSize(c.x1) == 0:
                     self.infeasible = True
                     return
+                    
             elif len(tempPrunedValues) > 0:
                 self.infeasible = True
                 return
@@ -203,7 +221,11 @@ class ArcConsistencyMethod3:
                         total += 1
                 
                 if total == 0:
-                    self.prunedValues += [(c.x2,b)]
+                    if not c.x2 in self.prunedValues:
+                        self.prunedValues[c.x2] = [b]
+                    else:
+                        self.prunedValues[c.x2] += [b]
+                        
                     tempPrunedValues += [b]
             
             for b in tempPrunedValues:
@@ -223,8 +245,9 @@ class ArcConsistencyMethod3:
                         aTester += [s]
             
     def cancel(self):
-        for x,a in self.prunedValues:
-            self.csp.domain[x].addValue(a)
+        for x,vals in self.prunedValues.items():
+            for val in vals:
+                self.csp.domain[x].addValue(val)
             
             
 class ArcConsistencyMethod:
@@ -261,7 +284,12 @@ class ArcConsistencyMethod:
                 count[x][y][a] = total
                 if total == 0:
                     self.csp.domain[x].removeValue(a)
-                    self.prunedValues += [(x,a)]
+                    
+                    self.tempPrunedValues += [(x,a)]
+                    if not x in self.prunedValues:
+                        self.prunedValues[x] = [a]
+                    else:
+                        self.prunedValues[x] += [a]
                     
                     if self.I[x] != None:
                         self.infeasible = True
@@ -300,8 +328,13 @@ class ArcConsistencyMethod:
                 count[x][y][a] = total
                 if total == 0:
                     self.csp.domain[x].removeValue(a)
-                    self.prunedValues += [(x,a)]
                     
+                    self.tempPrunedValues += [(x,a)]
+                    if not x in self.prunedValues:
+                        self.prunedValues[x] = [a]
+                    else:
+                        self.prunedValues[x] += [a]
+                        
                     if self.I[x] != None:
                         self.infeasible = True
                         return None, None
@@ -315,28 +348,34 @@ class ArcConsistencyMethod:
     
     def __init__(self,csp,var,I):
         self.csp = csp
-        self.prunedValues = []
+        self.prunedValues = {}
+        self.tempPrunedValues = []
         self.infeasible = False
         self.I = I
         S, count = self.initArcConsistency()
-        R = self.prunedValues[:]
         
         if self.infeasible:
             return
             
-        while len(R) > 0:
+        while len(self.tempPrunedValues) > 0:
             
-            y,b = R.pop()
+            y,b = self.tempPrunedValues.pop()
             if (y,b) in S:
                 for x,a in S[(y,b)]:
                     count[x][y][a] -= 1
                     if count[x][y][a] == 0 and self.csp.domain[x].hasValue(a):
                         self.csp.domain[x].removeValue(a)
-                        self.prunedValues += [(x,a)]
-                        R += [(x,a)]
+                        
+                        if not x in self.prunedValues:
+                            self.prunedValues[x] = [a]
+                        else:
+                            self.prunedValues[x] += [a]
+                        
+                        self.tempPrunedValues += [(x,a)]
         
     
     def cancel(self):
-        for x,a in self.prunedValues:
-            self.csp.domain[x].addValue(a)
+        for x,vals in self.prunedValues.items():
+            for val in vals:
+                self.csp.domain[x].addValue(val)
             
