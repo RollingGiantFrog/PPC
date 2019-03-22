@@ -33,7 +33,7 @@ solvingTime = []
 solutions = []
 feasibles = []
 
-for N in range(10,400):
+for N in range(10,151):
     print(N)
     
     t = time.clock()
@@ -46,27 +46,14 @@ for N in range(10,400):
             if x != y:
                 csp.addComprehensiveConstraint(x,y,queenDiff)
     
-    
-    print("Model loading : " + str(time.clock()-t))
-    
-    t = time.clock()
-    
-    #ArcConsistency(csp)
-    
-    #print("Arc consistency : " + str(time.clock()-t))
-    
-    t = time.clock()
-    
     feasible = False
     i = 0
-    timeLimit = 1.1*(N/100.)*(N/100.)
+    timeLimit = 1.
 
     while not feasible:
         backtrack = Backtrack(csp,verbosity=0,displayFreq=10,processingMethod=ForwardCheckingMethod,useArcConsistency=False,rankFuncs=[domainRank,randomRank],timeLimit=timeLimit)
         solution = backtrack.instanciation
         feasible = backtrack.feasible
-    
-    print("Backtracking : " + str(time.clock()-t))
     
     solutions += [solution]
     tests += [N]
